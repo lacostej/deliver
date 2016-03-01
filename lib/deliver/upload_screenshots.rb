@@ -126,10 +126,5 @@ module Deliver
 
       return screenshots
     end
-
-    def fetch_itc_screenshots_checksums(lnguage)
-
-    end
-
   end
 end
