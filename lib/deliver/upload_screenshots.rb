@@ -9,16 +9,41 @@ module Deliver
       v = app.edit_version
       UI.user_error!("Could not find a version to edit for app '#{app.name}'") unless v
 
-      UI.message("Starting with the upload of screenshots...")
-
+      UI.message("Removing previously uploaded screenshots...")
       # First, clear all previously uploaded screenshots, but only where we have new ones
-      # screenshots.each do |screenshot|
-      #   to_remove = v.screenshots[screenshot.language].find_all do |current|
-      #     current.device_type == screenshot.device_type
-      #   end
-      #   to_remove.each { |t| t.reset! }
-      # end
+
+      # md5's of uploaded screenshots
+      checksums_local = {}
+      # md5's of ITC screenshots
+      checksums_remote = {}
+
+      screenshots.each do |screenshot|
+        # checksum of uploaded screenshot
+        md5 = Digest::MD5.hexdigest(File.read(screenshot.path))
+        checksums_local[screenshot.language] ||= []
+        checksums_local[screenshot.language].push(md5)
+      end
+
+      v.screenshots.each do |lang, screenshots_for_lang|
+        screenshots_for_lang.each do |current|
+          checksum = current.original_file_name.split('_')
+          checksum = checksum[1]
+
+          # store remote checksum. We will need it later to determine if we have to upload screenshot
+          checksums_remote[current.language] ||= []
+          checksums_remote[current.language].push(checksum)
+
+          # Remove from ITC non existing locally screenshots
+          if !checksums_local[current.language].include?(checksum)
+            UI.message("Deleting screenshot #{current.original_file_name} for language #{current.language}")
+            v.upload_screenshot!(nil, current.sort_order, current.language, current.device_type)
+          end
+        end
+      end
+
       # This part is not working yet...
+
+      UI.message("Starting with the upload of screenshots...")
 
       # Now, fill in the new ones
       indized = {} # per language and device type
@@ -38,11 +63,18 @@ module Deliver
             next
           end
 
-          UI.message("Uploading '#{screenshot.path}'...")
-          v.upload_screenshot!(screenshot.path,
-                               index,
-                               screenshot.language,
-                               screenshot.device_type)
+          # md5 of uploaded file
+          md5 = Digest::MD5.hexdigest(File.read(screenshot.path))
+
+          if checksums_remote[screenshot.language].include?(md5)
+            UI.message("Screenshot #{screenshot.path} already uploaded. Skipping")
+          else
+            UI.message("Uploading '#{screenshot.path}'...")
+            v.upload_screenshot!(screenshot.path,
+                                 index,
+                                 screenshot.language,
+                                 screenshot.device_type)
+          end
         end
         # ideally we should only save once, but itunes server can't cope it seems
         # so we save per language. See issue #349
@@ -94,5 +126,10 @@ module Deliver
 
       return screenshots
     end
+
+    def fetch_itc_screenshots_checksums(lnguage)
+
+    end
+
   end
 end
