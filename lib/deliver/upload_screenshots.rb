@@ -19,22 +19,21 @@ module Deliver
 
       screenshots.each do |screenshot|
         # checksum of uploaded screenshot
-        md5 = Digest::MD5.hexdigest(File.read(screenshot.path))
+        md5 = Spaceship::Utilities.get_source_md5(screenshot.path)
         checksums_local[screenshot.language] ||= []
-        checksums_local[screenshot.language].push(md5)
+        checksums_local[screenshot.language] << md5
       end
 
       v.screenshots.each do |lang, screenshots_for_lang|
         screenshots_for_lang.each do |current|
-          checksum = current.original_file_name.split('_')
-          checksum = checksum[1]
+          checksum = current.original_file_name.split('_').at(1)
 
           # store remote checksum. We will need it later to determine if we have to upload screenshot
           checksums_remote[current.language] ||= []
-          checksums_remote[current.language].push(checksum)
+          checksums_remote[current.language] << checksum
 
           # Remove from ITC non existing locally screenshots
-          if !checksums_local[current.language].include?(checksum)
+          unless current.original_file_name =~ /ftl_[0-9a-f]{32}_*/ && checksums_local[current.language].include?(checksum)
             UI.message("Deleting screenshot #{current.original_file_name} for language #{current.language}")
             v.upload_screenshot!(nil, current.sort_order, current.language, current.device_type)
           end
@@ -64,7 +63,7 @@ module Deliver
           end
 
           # md5 of uploaded file
-          md5 = Digest::MD5.hexdigest(File.read(screenshot.path))
+          md5 = Spaceship::Utilities.get_source_md5(screenshot.path)
 
           if checksums_remote[screenshot.language].include?(md5)
             UI.message("Screenshot #{screenshot.path} already uploaded. Skipping")
